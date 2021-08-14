@@ -1,0 +1,9 @@
+Requirements:
+pip install djangorestframework
+pip install markdown       # Markdown support for the browsable API.
+pip install django-filter  # Filtering support
+
+Setting up:
+1. List the 'rest_framework' on your settings.py/'INSTALLED_APPS'
+2. Add the ff. at {proj. name}/urls.py for login/logout views:
+    path('api-auth/', include('rest_framework.urls'))
