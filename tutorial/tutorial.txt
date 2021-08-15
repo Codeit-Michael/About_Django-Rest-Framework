@@ -1,0 +1,120 @@
+## PART 1: SERIALIZATION ##
+
+*Getting Started:
+- Let's assume you already install django and rest framework at this time. Also make
+sure you 'pip3 install pygments' for text code highlighting. If you want a virtual
+environment with django, just type; 'pipenv install django', & type 'deactive' to exit.
+If you're ready, lets make our project and app made by django.
+
+- After it, let's list the app and 'rest_framework' in INSTALLED_APPS to access
+everything they had.
+
+
+*Models:
+- Let's add model to work with our API. After it, migrate.
+from django.db import models
+from pygments.lexers import get_all_lexers
+from pygments.styles import get_all_styles
+
+LEXERS = [item for item in get_all_lexers() if item[1]]
+LANGUAGE_CHOICES = sorted([(item[1][0], item[0]) for item in LEXERS])
+STYLE_CHOICES = sorted([(item, item) for item in get_all_styles()])
+
+class Snippet(models.Model):
+    created = models.DateTimeField(auto_now_add=True)
+    title = models.CharField(max_length=100, blank=True, default='')
+    code = models.TextField()
+    linenos = models.BooleanField(default=False)
+    language = models.CharField(choices=LANGUAGE_CHOICES, default='python', max_length=100)
+    style = models.CharField(choices=STYLE_CHOICES, default='friendly', max_length=100)
+
+    class Meta:
+        ordering = ['created']
+
+
+*Serializers:
+- Serializers works like a forms which wwork is to proccess the datas into objects such as json, etc. Make a serializers.py on your app directory (like snippets) & type:
+from rest_framework import serializers
+from snippets.models import Snippet, LANGUAGE_CHOICES, STYLE_CHOICES
+
+
+class SnippetSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    code = serializers.CharField(style={'base_template': 'textarea.html'})
+    linenos = serializers.BooleanField(required=False)
+    language = serializers.ChoiceField(choices=LANGUAGE_CHOICES, default='python')
+    style = serializers.ChoiceField(choices=STYLE_CHOICES, default='friendly')
+
+    def create(self, validated_data):
+        """
+        Create and return a new `Snippet` instance, given the validated data.
+        """
+        return Snippet.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        """
+        Update and return an existing `Snippet` instance, given the validated data.
+        """
+        instance.title = validated_data.get('title', instance.title)
+        instance.code = validated_data.get('code', instance.code)
+        instance.linenos = validated_data.get('linenos', instance.linenos)
+        instance.language = validated_data.get('language', instance.language)
+        instance.style = validated_data.get('style', instance.style)
+        instance.save()
+        return instance
+
+
+*Working with Serializers:
+- Now let's add some data in db by python3 manage.py shell. Example:
+
+	from snippets.models import Snippet
+	from snippets.serializers import SnippetSerializer
+	from rest_framework.renderers import JSONRenderer
+	from rest_framework.parsers import JSONParser
+
+	sn1 = Snippet(code='new = "one"')
+	sn1.save()
+
+	sn1 = Snippet(code='print("hello, world")')
+	sn1.save()
+
+- Since our sn1's last value is code='print("hello world")', that wil be what we use
+in future steps. Now let's serializing that instance by typing ff. in shell:
+
+	srl = SnippetSerializer(sn1)
+	srl.data
+
+- At this point we've translated the model instance into Python native datatypes. To finalize the serialization process we render the data into json.
+	
+	cnt = JSONRenderer().render(srl.data)
+	cnt # it returns now the json
+
+- Deserialization is similar. First we parse a stream into Python native datatypes
+
+	import io
+	stream = io.BYTESIO(cnt)
+	data = JSONParser().parse(stream)
+
+- And we can restore them into native datatypes by:
+	
+	serializer = SnippetSerializer(data=data)
+	serializer.is_valid()
+	# True
+	serializer.validated_data
+	# OrderedDict([('title', ''), ('code', 'print("hello, world")\n'), ('linenos', False), ('language', 'python'), ('style', 'friendly')])
+	serializer.save()
+	# <Snippet: Snippet object>
+
+
+*Working with ModelSerializers:
+In the same way that Django provides both Form classes and ModelForm classes, REST
+framework includes both Serializer classes, and ModelSerializer classes.
+Let's look at refactoring our serializer using the ModelSerializer class. Open the
+file snippets/serializers.py again, and replace the SnippetSerializer with the ff:
+
+	class SnippetSerializer(serializers.ModelSerializer):
+		class Meta:
+			model = Snippet
+			fields = ['id', 'title', 'code', 'linenos', 'language', 'style']
+
