@@ -118,3 +118,90 @@ file snippets/serializers.py again, and replace the SnippetSerializer with the f
 			model = Snippet
 			fields = ['id', 'title', 'code', 'linenos', 'language', 'style']
 
+- You can analyze the serializer instance of serializers by printing its
+representation(repr()) in shell. Once you import SnippetSerializer in
+snipppet.serializers try:
+
+	srl = SnippetSerializer()
+	print(repr(srl))
+
+- Our modelSerializer is has nothing to do. Just the default create() & update(). It 
+all happens because of our class Meta. It dictates our instances how to behave.
+
+
+*Writing Views using our Serializers:
+- The root of our API is going to be a view that supports listing all the existing
+snippets, or creating a new snippet:
+
+	from django.http import HttpResponse, JsonResponse
+	from django.views.decorators.csrf import csrf_exempt
+	from rest_framework.parsers import JSONParser
+	from snippets.models import Snippet
+	from snippets.serializers import SnippetSerializer
+
+	# csrf_exempt because we don't have csrf_token
+	@csrf_exempt
+	def snippet_list(request):
+		"""
+		List all code snippets, or create a new snippet.
+		"""
+		if request.method == 'GET':
+			snippets = Snippet.objects.all()
+			serializer = SnippetSerializer(snippets, many=True)
+			return JsonResponse(serializer.data, safe=False)
+
+		elif request.method == 'POST':
+			data = JSONParser().parse(request)
+			serializer = SnippetSerializer(data=data)
+			if serializer.is_valid():
+				serializer.save()
+				return JsonResponse(serializer.data, status=201)
+			return JsonResponse(serializer.errors, status=400)
+
+- We'll also need a view which corresponds to an individual snippet, and can be used
+to retrieve, update or delete the snippet:
+
+	@csrf_exempt
+	def snippet_detail(request, pk):
+	    """
+	    Retrieve, update or delete a code snippet.
+	    """
+	    try:
+	        snippet = Snippet.objects.get(pk=pk)
+	    except Snippet.DoesNotExist:
+	        return HttpResponse(status=404)
+
+	    if request.method == 'GET':
+	        serializer = SnippetSerializer(snippet)
+	        return JsonResponse(serializer.data)
+
+	    elif request.method == 'PUT':
+	        data = JSONParser().parse(request)
+	        serializer = SnippetSerializer(snippet, data=data)
+	        if serializer.is_valid():
+	            serializer.save()
+	            return JsonResponse(serializer.data)
+	        return JsonResponse(serializer.errors, status=400)
+
+	    elif request.method == 'DELETE':
+	        snippet.delete()
+	        return HttpResponse(status=204)
+
+- In able to connect wwith this, we should edit our snippets/urls.py:
+
+	from django.urls import path
+	from snippets import views
+
+	urlpatterns = [
+		path('snippets/', views.snippet_list),
+		path('snippets/<int:pk>/', views.snippet_detail),
+	]
+
+- In tutorial/urls.py:
+	from django.urls import path, include
+
+	urlpatterns = [
+		path('', include('snippets.urls')),
+	]
+
+- Now we cam try our code by running the server: python3 manage.py runserver
