@@ -507,3 +507,63 @@ The easiest way to do this is:
 	python manage.py migrate
 
 - And now create a new superuser: python3 manage.py createsuperuser
+
+
+*Adding endpoints for user models
+
+- Now that we've got some users to work with, we'd better add representations of 
+those users to our API. Creating a new serializer is easy. In serializers.py add:
+
+	from django.contrib.auth.models import User
+
+	class UserSerializer(serializers.ModelSerializer):
+		snippets = serializers.PrimaryKeyRelatedField(many=True, queryset=Snippet.objects.all())
+
+		class Meta:
+			model = User
+			fields = ['id', 'username', 'snippets']
+
+- We'd like to just use read-only views for the user representations, so we'll use 
+the ListAPIView and RetrieveAPIView generic class-based views. Now add the ff. in our
+views.py:
+
+	from django.contrib.auth.models import User
+
+	class UserList(generics.ListAPIView):
+		queryset = User.objects.all()
+		serializer_class = UserSerializer
+
+	class UserDetail(generics.RetrieveAPIView):
+		queryset = User.objects.all()
+		serializer_class = UserSerializer
+
+- Make sure to also import the UserSerializer class:
+
+	from snippets.serializers import UserSerializer
+
+- Finally we need to add those views into the API, by referencing them from the URL 
+conf. Add the following to the patterns in snippets/urls.py.
+
+	path('users/', views.UserList.as_view()),
+	path('users/<int:pk>/', views.UserDetail.as_view()),
+
+The user isn't sent as part of the serialized representation, but is instead a 
+property of the incoming request. The way we deal with that is by overriding a 
+.perform_create() method on our snippet views, that allows us to modify how the 
+instance save is managed, and handle any information that is implicit in the incoming 
+request or requested URL. On the views.py/SnippetList view class, add the following 
+method:
+
+	def perform_create(self, serializer):
+		serializer.save(owner=self.request.user)
+
+- The create() method of our serializer will now be passed an additional 'owner' field, along with the validated data from the request.
+
+
+*Updating our serializers
+
+- Now that snippets are associated with the user that created them, let's update our 
+serializers.py/SnippetSerializer() to reflect that, so add the ff.:
+
+	owner = serializers.ReadOnlyField(source='owner.username')
+
