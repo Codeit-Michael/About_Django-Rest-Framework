@@ -461,3 +461,49 @@ mixed-in generic views that we can use to trim down our views.py module even mor
 	class SnippetDetail(generics.RetrieveUpdateDestroyAPIView):
 		queryset = Snippet.objects.all()
 		serializer_class = SnippetSerializer
+
+
+
+## USER AUTHENTICATIONS ##
+*Adding user information to our model:
+
+- Let's add some fields first. One of those fields will be used to represent the user 
+who created the code snippet. The other field will be used to store the highlighted 
+HTML representation of the code. Now let's modify the snippets/models.py/snippet():
+
+	owner = models.ForeignKey('auth.User', related_name='snippets', on_delete=models.CASCADE)
+	highlighted = models.TextField()
+
+- We'd also need to make sure that when the model is saved, that we populate the 
+highlighted field, using the pygments code highlighting library:
+
+	from pygments.lexers import get_lexer_by_name
+	from pygments.formatters.html import HtmlFormatter
+	from pygments import highlight
+
+- Now let's add save() method in our class:
+
+	def save(self, *args, **kwargs):
+		"""
+		Use the `pygments` library to create a highlighted HTML
+		representation of the code snippet.
+		"""
+		lexer = get_lexer_by_name(self.language)
+		linenos = 'table' if self.linenos else False
+		options = {'title': self.title} if self.title else {}
+		formatter = HtmlFormatter(style=self.style, linenos=linenos,
+									full=True, **options)
+		self.highlighted = highlight(self.code, lexer, formatter)
+		super(Snippet, self).save(*args, **kwargs)
+
+- After this, we need to start overall again. We need to erase the old db and make new
+migrations to avoid errors in migrations because the old model doesn't fit the new 
+models. It throws error because some old attributes are lost and replaced new ones. 
+The easiest way to do this is:
+
+	rm -f db.sqlite3
+	rm -r snippets/migrations
+	python manage.py makemigrations snippets
+	python manage.py migrate
+
+- And now create a new superuser: python3 manage.py createsuperuser
