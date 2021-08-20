@@ -664,3 +664,27 @@ browser session will then provide the required authentication for the requests.
 
   If we try to create a snippet without authenticating, we'll get an error. If we're 
 logged in, then it will be successful.
+
+
+
+## HYPERLINKED APIs & THEIR RELATIONSHIPS
+
+*Creating endpoint of the API
+
+- For now, we have an endpoint for snippets and users, but none in single entrypoint 
+of our API. Now let's add one in snippets/views.py:
+
+	from rest_framework.decorators import api_view
+	from rest_framework.response import Response
+	from rest_framework.reverse import reverse
+
+	@api_view(['GET'])
+	def api_root(request, format=None):
+		return Response({
+			'users': reverse('user-list', request=request, format=format),
+			'snippets': reverse('snippet-list', request=request, format=format)
+		})
+
+- Two things should be noticed here. First, we're using REST framework's reverse 
+function in order to return fully-qualified URLs; second, URL patterns are identified 
+by convenience names that we will declare later on in our snippets/urls.py.
